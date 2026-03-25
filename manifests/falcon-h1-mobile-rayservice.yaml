@@ -80,11 +80,11 @@ spec:
             image: rayproject/ray-llm:2.50.1-py311-cu128
             resources:
               limits:
-                cpu: 6
+                cpu: 10
                 memory: 32Gi
 __GPU_LIMIT__
               requests:
-                cpu: 2
+                cpu: 4
                 memory: 16Gi
 __GPU_REQUEST__
             env:
