@@ -1,0 +1,113 @@
+apiVersion: ray.io/v1
+kind: RayService
+metadata:
+  name: falcon-h1-mobile
+  namespace: __NAMESPACE__
+spec:
+  serviceUnhealthySecondThreshold: 1800
+  deploymentUnhealthySecondThreshold: 1200
+  serveConfigV2: |
+    applications:
+    - name: "falcon-h1-mobile-app"
+      import_path: "mobile_llama_app:app"
+      route_prefix: "/v1"
+      runtime_env:
+        pip:
+          - "llama-cpp-python"
+          - "huggingface_hub"
+  rayClusterConfig:
+    rayVersion: '2.50.1'
+    enableInTreeAutoscaling: true
+    headGroupSpec:
+      serviceType: ClusterIP
+      rayStartParams:
+        dashboard-host: '0.0.0.0'
+        dashboard-port: '8265'
+        num-gpus: '0'
+        object-store-memory: '4294967296'
+      template:
+        metadata:
+          labels:
+            app: falcon-h1-mobile
+        spec:
+          serviceAccountName: ray-sa
+          containers:
+          - name: ray-head
+            image: rayproject/ray-llm:2.50.1-py311-cu128
+            resources:
+              limits:
+                cpu: 4
+                memory: 16Gi
+              requests:
+                cpu: 1
+                memory: 8Gi
+            ports:
+            - containerPort: 6379
+              name: gcs-server
+            - containerPort: 8265
+              name: dashboard
+            - containerPort: 10001
+              name: client
+            - containerPort: 8000
+              name: serve
+            env:
+            - name: PIP_EXTRA_INDEX_URL
+              value: "https://abetlen.github.io/llama-cpp-python/whl/cu124"
+            volumeMounts:
+            - mountPath: /home/ray/mobile_llama_app.py
+              name: mobile-serve-script
+              subPath: mobile_llama_app.py
+          volumes:
+          - name: mobile-serve-script
+            configMap:
+              name: falcon-h1-mobile-serve-script
+          nodeSelector:
+            cloud.google.com/gke-nodepool: __HEAD_NODE_POOL__
+
+    workerGroupSpecs:
+    - groupName: mobile-gpu-workers
+      replicas: __NUM_GPU_WORKERS__
+      minReplicas: __NUM_GPU_WORKERS__
+      maxReplicas: __NUM_GPU_WORKERS__
+      rayStartParams:
+        num-gpus: '__RAY_NUM_GPUS__'
+        object-store-memory: '10737418240'
+      template:
+        spec:
+          serviceAccountName: ray-sa
+          containers:
+          - name: ray-worker
+            image: rayproject/ray-llm:2.50.1-py311-cu128
+            resources:
+              limits:
+                cpu: 6
+                memory: 32Gi
+__GPU_LIMIT__
+              requests:
+                cpu: 2
+                memory: 16Gi
+__GPU_REQUEST__
+            env:
+            - name: PIP_EXTRA_INDEX_URL
+              value: "https://abetlen.github.io/llama-cpp-python/whl/cu124"
+            - name: PYTORCH_CUDA_ALLOC_CONF
+              value: "max_split_size_mb:256,expandable_segments:True"
+            - name: TOKENIZERS_PARALLELISM
+              value: "false"
+            - name: FALCON_USE_GPU
+              value: "__FALCON_USE_GPU__"
+            volumeMounts:
+            - mountPath: /home/ray/mobile_llama_app.py
+              name: mobile-serve-script
+              subPath: mobile_llama_app.py
+          volumes:
+          - name: mobile-serve-script
+            configMap:
+              name: falcon-h1-mobile-serve-script
+          nodeSelector:
+            cloud.google.com/gke-nodepool: __WORKER_NODE_POOL__
+          tolerations:
+          - effect: NoSchedule
+            key: nvidia.com/gpu-type
+            operator: Equal
+            value: __GPU_TOLERATION__

@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: falcon-h1-mobile-service
+  namespace: __NAMESPACE__
+spec:
+  type: ClusterIP
+  ports:
+  - name: http
+    port: 8080
+    targetPort: 8000
+    protocol: TCP
+  selector:
+    app: falcon-h1-mobile
