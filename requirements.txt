@@ -1,0 +1,4 @@
+ray[serve]>=2.50.0
+llama-cpp-python
+huggingface_hub
+starlette
